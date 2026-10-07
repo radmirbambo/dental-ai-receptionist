@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-оператор — дашборд клиники</title>
+<style>
+  :root{ --bg:#0b0f0e; --card:#121a18; --line:#22302c; --txt:#e8f0ed; --mut:#8fa39d; --acc:#2fe0b0; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif}
+  header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+  header .dot{width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 10px var(--acc)}
+  header h1{font-size:17px;margin:0;font-weight:700}
+  header .live{margin-left:auto;color:var(--mut);font-size:13px}
+  .grid{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;padding:22px;max-width:1100px;margin:0 auto}
+  @media(max-width:820px){.grid{grid-template-columns:1fr}}
+  .col h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);margin:0 0 12px}
+  .row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;
+       display:flex;align-items:center;gap:12px}
+  .row .who{font-weight:600}
+  .row .meta{color:var(--mut);font-size:13px}
+  .row .right{margin-left:auto;text-align:right}
+  .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .b-new{background:#22302c;color:var(--mut)}
+  .b-calling{background:rgba(255,196,84,.15);color:#ffc454}
+  .b-booked{background:rgba(47,224,176,.15);color:var(--acc)}
+  .b-no_answer,.b-failed{background:rgba(216,90,48,.15);color:#f0997b}
+  .callbtn{background:transparent;border:1px solid var(--acc);color:var(--acc);border-radius:8px;
+       padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px}
+  .empty{color:var(--mut);font-size:14px;padding:8px 2px}
+  .apt{display:flex;justify-content:space-between}
+  .apt .slot{color:var(--acc);font-weight:700}
+  .stats{display:flex;gap:10px;margin-bottom:16px}
+  .stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .stat .n{font-size:24px;font-weight:800}
+  .stat .l{color:var(--mut);font-size:12px}
+  /* text-fallback modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px}
+  .modal.on{display:flex}
+  .chat{background:var(--card);border:1px solid var(--line);border-radius:16px;width:100%;max-width:440px;display:flex;flex-direction:column;height:70vh}
+  .chat .head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center}
+  .chat .head b{font-size:15px}
+  .chat .close{margin-left:auto;background:none;border:0;color:var(--mut);font-size:20px;cursor:pointer}
+  .msgs{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+  .m{max-width:80%;padding:9px 12px;border-radius:12px;font-size:14px}
+  .m.a{background:#0c1210;border:1px solid var(--line);align-self:flex-start}
+  .m.u{background:var(--acc);color:#04231b;align-self:flex-end}
+  .chat form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}
+  .chat input{flex:1;background:#0c1210;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px}
+  .chat button{background:var(--acc);color:#04231b;border:0;border-radius:10px;padding:0 16px;font-weight:700;cursor:pointer}
+  .hint{color:var(--mut);font-size:12px;padding:0 24px 20px;max-width:1100px;margin:0 auto}
+  /* недельная сетка окон */
+  .week{max-width:1100px;margin:0 auto;padding:0 24px 8px}
+  .week h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);margin:0 0 12px}
+  .days{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .day{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .day .dname{font-weight:600;font-size:13px;margin-bottom:8px;text-transform:capitalize}
+  .cells{display:flex;flex-wrap:wrap;gap:5px}
+  .cell{font-size:11px;padding:3px 6px;border-radius:6px;font-weight:600}
+  .cell.free{background:rgba(47,224,176,.12);color:var(--acc)}
+  .cell.booked{background:rgba(216,90,48,.18);color:#f0997b;text-decoration:line-through}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot"></span>
+  <h1>AI-оператор · <span style="color:var(--mut);font-weight:500">Стоматология «Улыбка»</span></h1>
+  <span class="live" id="live">обновление…</span>
+</header>
+
+<div class="grid">
+  <div class="col">
+    <div class="stats">
+      <div class="stat"><div class="n" id="s-leads">0</div><div class="l">заявок</div></div>
+      <div class="stat"><div class="n" id="s-booked" style="color:var(--acc)">0</div><div class="l">записано</div></div>
+      <div class="stat"><div class="n" id="s-conv">—</div><div class="l">конверсия</div></div>
+    </div>
+    <h2>Заявки → звонки</h2>
+    <div id="leads"><div class="empty">Пока нет заявок. Оставьте на <a href="/" style="color:var(--acc)">лендинге</a>.</div></div>
+  </div>
+  <div class="col">
+    <h2>Записи на приём</h2>
+    <div id="apts"><div class="empty">Записей пока нет.</div></div>
+  </div>
+</div>
+<div class="week">
+  <h2>Окна недели</h2>
+  <div class="days" id="slots"></div>
+</div>
+
+<div class="hint">Звонок идёт через Voximplant на реальный телефон. Если телефония недоступна — жмите «Позвонить текстом» на заявке: тот же агент, тот же цикл записи.</div>
+
+<!-- Текстовый fallback -->
+<div class="modal" id="modal">
+  <div class="chat">
+    <div class="head"><b id="chatWho">Звонок</b><button class="close" onclick="closeChat()">×</button></div>
+    <div class="msgs" id="msgs"></div>
+    <form id="chatForm"><input id="chatInput" placeholder="Ответьте как пациент…" autocomplete="off"><button>▶</button></form>
+  </div>
+</div>
+
+<script>
+const STATUS_RU = {new:'новая',calling:'звоним',booked:'записан',no_answer:'не ответил',failed:'сбой'};
+let curLead = null;
+
+async function tick(){
+  try{
+    const r = await fetch('/api/state'); const d = await r.json();
+    render(d); document.getElementById('live').textContent = '● обновлено ' + new Date().toLocaleTimeString();
+  }catch(e){ document.getElementById('live').textContent = 'нет связи с сервером'; }
+}
+
+function render(d){
+  const leads = d.leads||[], apts = d.appointments||[];
+  const booked = leads.filter(l=>l.status==='booked').length;
+  document.getElementById('s-leads').textContent = leads.length;
+  document.getElementById('s-booked').textContent = booked;
+  document.getElementById('s-conv').textContent = leads.length ? Math.round(booked/leads.length*100)+'%' : '—';
+
+  document.getElementById('leads').innerHTML = leads.length ? leads.map(l=>`
+    <div class="row">
+      <div>
+        <div class="who">${esc(l.name)} <span class="meta">· ${esc(l.phone)}</span></div>
+        <div class="meta">${esc(l.reason||'—')}</div>
+        ${l.status!=='booked' ? `<button class="callbtn" onclick="recall(${l.id})">📞 Перезвонить</button>
+          <button class="callbtn" onclick="openChat(${l.id},'${esc(l.name)}')">Текстом</button>`:''}
+      </div>
+      <div class="right">
+        <span class="badge b-${l.status}">${STATUS_RU[l.status]||l.status}</span>
+        ${l.summary?`<div class="meta" style="margin-top:6px">${esc(l.summary)}</div>`:''}
+      </div>
+    </div>`).join('') : '<div class="empty">Пока нет заявок.</div>';
+
+  document.getElementById('apts').innerHTML = apts.length ? apts.map(a=>`
+    <div class="row apt">
+      <div><div class="who">${esc(a.patient_name)}</div><div class="meta">${esc(a.reason||'осмотр')}</div></div>
+      <div class="slot">${fmtSlot(a.slot)}</div>
+    </div>`).join('') : '<div class="empty">Записей пока нет.</div>';
+
+  renderSlots(d.slots || []);
+}
+
+const DOW = ['вс','пн','вт','ср','чт','пт','сб'];
+function renderSlots(slots){
+  // группируем окна по дням
+  const byDay = {};
+  slots.forEach(s=>{ const [d,t]=s.slot.split(' '); (byDay[d]=byDay[d]||[]).push({t, status:s.status}); });
+  const days = Object.keys(byDay).sort();
+  document.getElementById('slots').innerHTML = days.length ? days.map(d=>{
+    const dt = new Date(d+'T00:00:00');
+    const [y,m,dd] = d.split('-');
+    const name = `${DOW[dt.getDay()]}, ${dd}.${m}`;
+    const cells = byDay[d].map(c=>`<span class="cell ${c.status}">${c.t}</span>`).join('');
+    return `<div class="day"><div class="dname">${name}</div><div class="cells">${cells}</div></div>`;
+  }).join('') : '<div class="empty">Окон нет.</div>';
+}
+
+function fmtSlot(s){ const [d,t]=s.split(' '); const [y,m,dd]=d.split('-'); return `${dd}.${m} ${t}`; }
+function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function recall(id){
+  await fetch(`/api/leads/${id}/call`, {method:'POST'});
+}
+// ---- текстовый fallback ----
+async function openChat(id, name){
+  curLead = id;
+  document.getElementById('chatWho').textContent = 'Звонок · ' + name;
+  document.getElementById('msgs').innerHTML = '';
+  document.getElementById('modal').classList.add('on');
+  const reply = await sendChat('');   // пустой -> агент здоровается первым
+}
+function closeChat(){ document.getElementById('modal').classList.remove('on'); curLead=null; }
+function addMsg(text, who){ const m=document.createElement('div'); m.className='m '+who; m.textContent=text; document.getElementById('msgs').appendChild(m); document.getElementById('msgs').scrollTop=1e9; }
+async function sendChat(text){
+  if(text) addMsg(text,'u');
+  const typing=document.createElement('div'); typing.className='m a'; typing.textContent='…'; document.getElementById('msgs').appendChild(typing);
+  const r=await fetch(`/api/leads/${curLead}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+  const d=await r.json(); typing.remove(); addMsg(d.reply,'a'); return d.reply;
+}
+document.getElementById('chatForm').addEventListener('submit',e=>{
+  e.preventDefault(); const i=document.getElementById('chatInput'); const t=i.value.trim(); if(!t)return; i.value=''; sendChat(t);
+});
+
+tick(); setInterval(tick, 2000);
+</script>
+</body>
+</html>

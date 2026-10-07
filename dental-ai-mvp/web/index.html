@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Стоматология «Улыбка» — запись на приём</title>
+<style>
+  :root{ --bg:#0b0f0e; --card:#121a18; --line:#22302c; --txt:#e8f0ed; --mut:#8fa39d; --acc:#2fe0b0; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;
+       min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .wrap{max-width:460px;width:100%}
+  .brand{color:var(--acc);font-weight:700;letter-spacing:.5px;font-size:13px;text-transform:uppercase}
+  h1{font-size:30px;line-height:1.15;margin:10px 0 8px}
+  .sub{color:var(--mut);margin-bottom:22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
+  label{display:block;font-size:13px;color:var(--mut);margin:14px 0 6px}
+  input,textarea{width:100%;background:#0c1210;border:1px solid var(--line);color:var(--txt);
+       border-radius:10px;padding:12px;font-size:15px;font-family:inherit}
+  textarea{resize:vertical;min-height:64px}
+  button{width:100%;margin-top:18px;background:var(--acc);color:#04231b;border:0;border-radius:10px;
+       padding:14px;font-size:16px;font-weight:700;cursor:pointer}
+  button:disabled{opacity:.6;cursor:default}
+  .ok{text-align:center;padding:10px 0}
+  .ok .big{font-size:44px}
+  .pill{display:inline-block;background:rgba(47,224,176,.12);color:var(--acc);border-radius:999px;
+       padding:5px 12px;font-size:13px;font-weight:600;margin-bottom:16px}
+  .foot{color:var(--mut);font-size:12px;text-align:center;margin-top:16px}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">Стоматология «Улыбка»</div>
+  <h1>Оставьте заявку — <br>перезвоним за 5 минут</h1>
+  <div class="sub">Запишем на первичный осмотр в удобное время. Без ожидания на линии.</div>
+
+  <div class="card" id="card">
+    <span class="pill">● AI-оператор на линии 24/7</span>
+    <form id="form">
+      <label>Как вас зовут?</label>
+      <input id="name" required placeholder="Иван">
+      <label>Телефон для звонка</label>
+      <input id="phone" required placeholder="+7 900 000-00-00" inputmode="tel">
+      <label>Что беспокоит? (необязательно)</label>
+      <textarea id="reason" placeholder="Болит зуб, хочу на осмотр"></textarea>
+      <button type="submit" id="btn">Оставить заявку</button>
+    </form>
+  </div>
+
+  <div class="foot">Демо продукта · дашборд оператора: <a href="/dashboard">/dashboard</a></div>
+</div>
+
+<script>
+const form = document.getElementById('form');
+const card = document.getElementById('card');
+form.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const btn = document.getElementById('btn');
+  btn.disabled = true; btn.textContent = 'Отправляем…';
+  const body = {
+    name: document.getElementById('name').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+    reason: document.getElementById('reason').value.trim(),
+    source: 'сайт'
+  };
+  try{
+    const r = await fetch('/api/leads', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data = await r.json();
+    card.innerHTML = `<div class="ok">
+        <div class="big">📞</div>
+        <h2 style="margin:8px 0">Спасибо, ${body.name}!</h2>
+        <p style="color:var(--mut)">Наш AI-оператор готов поговорить с вами прямо сейчас.</p>
+        <a href="/voice?lead=${data.lead_id}"><button style="margin-top:6px">🎙️ Поговорить с AI-оператором</button></a>
+        <p style="font-size:13px;color:var(--mut);margin-top:18px">Заявка №${data.lead_id} · смотрите её в <a href="/dashboard">дашборде</a></p>
+      </div>`;
+  }catch(err){
+    btn.disabled=false; btn.textContent='Оставить заявку';
+    alert('Не удалось отправить: '+err);
+  }
+});
+</script>
+</body>
+</html>

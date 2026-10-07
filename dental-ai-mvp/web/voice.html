@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Звонок AI-оператора</title>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<style>
+  :root{ --bg:#0b0f0e; --card:#121a18; --line:#22302c; --txt:#e8f0ed; --mut:#8fa39d; --acc:#2fe0b0; --red:#f0997b; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;
+       min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .wrap{max-width:440px;width:100%;text-align:center}
+  .brand{color:var(--acc);font-weight:700;letter-spacing:.5px;font-size:13px;text-transform:uppercase}
+  h1{font-size:24px;margin:8px 0 4px}
+  .sub{color:var(--mut);margin-bottom:24px}
+  .orb{width:120px;height:120px;border-radius:50%;margin:0 auto 20px;background:radial-gradient(circle at 50% 40%, #1c3b32, #0c1210);
+       border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:44px;transition:.2s}
+  .orb.live{border-color:var(--acc);box-shadow:0 0 40px rgba(47,224,176,.35);animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+  .status{color:var(--mut);font-size:14px;min-height:20px;margin-bottom:18px}
+  button{border:0;border-radius:12px;padding:15px 26px;font-size:16px;font-weight:700;cursor:pointer}
+  .call{background:var(--acc);color:#04231b}
+  .hang{background:transparent;border:1px solid var(--red);color:var(--red)}
+  button:disabled{opacity:.5;cursor:default}
+  .log{margin-top:22px;text-align:left;max-height:220px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+  .m{padding:9px 12px;border-radius:12px;font-size:14px;max-width:85%}
+  .m.a{background:#0c1210;border:1px solid var(--line);align-self:flex-start}
+  .m.u{background:var(--acc);color:#04231b;align-self:flex-end}
+  .foot{color:var(--mut);font-size:12px;margin-top:18px}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">Стоматология «Улыбка»</div>
+  <h1>Разговор с AI-оператором</h1>
+  <div class="sub">Нажмите «Позвонить», разрешите микрофон и говорите — как по телефону.</div>
+
+  <div class="orb" id="orb">🎙️</div>
+  <div class="status" id="status">Готов к звонку</div>
+
+  <button class="call" id="callBtn" onclick="startCall()">Позвонить</button>
+  <button class="hang" id="hangBtn" onclick="endCall()" style="display:none">Завершить</button>
+
+  <div class="log" id="log"></div>
+  <div class="foot"><a href="/dashboard">← к дашборду</a></div>
+</div>
+
+<script>
+const { Room, RoomEvent, Track } = LivekitClient;
+const params = new URLSearchParams(location.search);
+const leadId = params.get('lead');
+let room = null;
+
+function setStatus(t){ document.getElementById('status').textContent = t; }
+function addMsg(text, who){
+  const l = document.getElementById('log');
+  let last = l.lastElementChild;
+  // Транскрипт приходит частями — обновляем последнюю реплику того же говорящего.
+  if(last && last.dataset.who===who && !last.dataset.final){ last.textContent = text; }
+  else { const m=document.createElement('div'); m.className='m '+who; m.dataset.who=who; m.textContent=text; l.appendChild(m); }
+  l.scrollTop = 1e9;
+}
+
+async function startCall(){
+  if(!leadId){ setStatus('Нет lead в ссылке (?lead=ID)'); return; }
+  document.getElementById('callBtn').disabled = true;
+  setStatus('Соединяем…');
+  try{
+    const r = await fetch(`/api/leads/${leadId}/voice-token`, {method:'POST'});
+    const d = await r.json();
+    if(d.error || !d.token){ setStatus('Ошибка: '+(d.error||'нет токена')); document.getElementById('callBtn').disabled=false; return; }
+
+    room = new Room();
+
+    // Агент говорит -> проигрываем его аудио.
+    room.on(RoomEvent.TrackSubscribed, (track)=>{
+      if(track.kind === Track.Kind.Audio){ track.attach(); document.getElementById('orb').classList.add('live'); }
+    });
+    // Живой транскрипт (речь агента и ваша).
+    room.on(RoomEvent.TranscriptionReceived, (segments, participant)=>{
+      const isAgent = participant && participant.identity && participant.identity.startsWith('agent');
+      segments.forEach(s=>{ addMsg(s.text, isAgent?'a':'u'); });
+    });
+    room.on(RoomEvent.Disconnected, ()=>{ setStatus('Звонок завершён'); resetButtons(); });
+
+    await room.connect(d.url, d.token);
+    await room.localParticipant.setMicrophoneEnabled(true);   // включаем микрофон
+
+    setStatus('🟢 На связи — говорите');
+    document.getElementById('hangBtn').style.display='inline-block';
+  }catch(e){
+    setStatus('Не удалось подключиться: '+e.message);
+    document.getElementById('callBtn').disabled=false;
+  }
+}
+
+async function endCall(){ if(room){ await room.disconnect(); } }
+function resetButtons(){
+  document.getElementById('orb').classList.remove('live');
+  document.getElementById('callBtn').disabled=false;
+  document.getElementById('hangBtn').style.display='none';
+}
+</script>
+</body>
+</html>
